@@ -29,13 +29,3 @@ What It Does
 ✔ Step 3: Logs responses in cpdos_log.txt.
 ✔ Step 4: Displays attack progress for demonstration.
 
-
----
-
-Next Steps
-
-Add multithreading for faster execution
-
-Implement additional CPDoS variations
-
-Integrate Wireshark logging for deeper packet analysis
